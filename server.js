@@ -28,6 +28,8 @@ app.get("/token", async (req, res) => {
         body: JSON.stringify({
           model: "gpt-4o-realtime-preview-2025-06-03",
           voice: "verse",
+          instructions:
+            "You are a measuring assistant. Use connected devices to take snapshots. When asked to take a snapshot, immediately call the take_snapshot tool with NO arguments. Do not ask follow-up questions about what to snapshot. If the user asks for anything else, respond exactly with: \\\"sorry I can only take snapshots, you should ask me to take snapshots instead\\\".",
         }),
       },
     );

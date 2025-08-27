@@ -3,6 +3,7 @@ import logo from "/assets/openai-logomark.svg";
 import EventLog from "./EventLog";
 import SessionControls from "./SessionControls";
 import ToolPanel from "./ToolPanel";
+import SnapshotTable from "./SnapshotTable";
 
 export default function App() {
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -10,6 +11,21 @@ export default function App() {
   const [dataChannel, setDataChannel] = useState(null);
   const peerConnection = useRef(null);
   const audioElement = useRef(null);
+  const [snapshots, setSnapshots] = useState([]);
+
+  function addRandomSnapshotRow() {
+    setSnapshots((prev) => {
+      const nextId = prev.length + 1;
+      const pos = (nextId - 1) * 5;
+      const maybeNull = () => (Math.random() < 0.15 ? null : undefined);
+      const vVal = maybeNull() ?? Number((Math.random() * 30).toFixed(1));
+      const hVal = maybeNull() ?? Number((-3 + Math.random() * 25).toFixed(1));
+      return [
+        ...prev,
+        { id: nextId, pos, v: vVal, h: hVal },
+      ];
+    });
+  }
 
   async function startSession() {
     // Get a session token for OpenAI Realtime API
@@ -154,7 +170,8 @@ export default function App() {
       <main className="absolute top-16 left-0 right-0 bottom-0">
         <section className="absolute top-0 left-0 right-[380px] bottom-0 flex">
           <section className="absolute top-0 left-0 right-0 bottom-32 px-4 overflow-y-auto">
-            <EventLog events={events} />
+            {/* Snapshot table on the left */}
+            <SnapshotTable rows={snapshots} />
           </section>
           <section className="absolute h-32 left-0 right-0 bottom-0 p-4">
             <SessionControls
@@ -173,6 +190,7 @@ export default function App() {
             sendTextMessage={sendTextMessage}
             events={events}
             isSessionActive={isSessionActive}
+            onSnapshot={addRandomSnapshotRow}
           />
         </section>
       </main>
