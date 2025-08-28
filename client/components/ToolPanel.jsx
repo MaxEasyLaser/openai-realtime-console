@@ -93,8 +93,8 @@ export default function ToolPanel({
   useEffect(() => {
     if (!events || events.length === 0) return;
 
-    const firstEvent = events[events.length - 1];
-    if (!functionAdded && firstEvent.type === "session.created") {
+    // Ensure tools are registered at the first sign of life from the server
+    if (!functionAdded) {
       sendClientEvent(sessionUpdate);
       setFunctionAdded(true);
     }
