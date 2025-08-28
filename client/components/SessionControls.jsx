@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CloudLightning, CloudOff, MessageSquare } from "react-feather";
+import { CloudLightning, CloudOff, MessageSquare, Mic, MicOff } from "react-feather";
 import Button from "./Button";
 
 function SessionStopped({ startSession }) {
@@ -25,7 +25,7 @@ function SessionStopped({ startSession }) {
   );
 }
 
-function SessionActive({ stopSession, sendTextMessage }) {
+function SessionActive({ stopSession, sendTextMessage, isMicMuted, onToggleMicMute }) {
   const [message, setMessage] = useState("");
 
   function handleSendClientEvent() {
@@ -58,6 +58,9 @@ function SessionActive({ stopSession, sendTextMessage }) {
       >
         send text
       </Button>
+      <Button onClick={onToggleMicMute} icon={isMicMuted ? <MicOff height={16} /> : <Mic height={16} />} className={isMicMuted ? "bg-gray-500" : "bg-green-600"}>
+        {isMicMuted ? "mic muted" : "mic on"}
+      </Button>
       <Button onClick={stopSession} icon={<CloudOff height={16} />}>
         disconnect
       </Button>
@@ -72,6 +75,8 @@ export default function SessionControls({
   sendTextMessage,
   serverEvents,
   isSessionActive,
+  isMicMuted,
+  onToggleMicMute,
 }) {
   return (
     <div className="flex gap-4 border-t-2 border-gray-200 h-full rounded-md">
@@ -81,6 +86,8 @@ export default function SessionControls({
           sendClientEvent={sendClientEvent}
           sendTextMessage={sendTextMessage}
           serverEvents={serverEvents}
+          isMicMuted={isMicMuted}
+          onToggleMicMute={onToggleMicMute}
         />
       ) : (
         <SessionStopped startSession={startSession} />

@@ -4,6 +4,7 @@ import EventLog from "./EventLog";
 import SessionControls from "./SessionControls";
 import ToolPanel from "./ToolPanel";
 import SnapshotTable from "./SnapshotTable";
+import ResultChart from "./ResultChart";
 
 export default function App() {
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -11,9 +12,14 @@ export default function App() {
   const [dataChannel, setDataChannel] = useState(null);
   const peerConnection = useRef(null);
   const audioElement = useRef(null);
+  const localMicTrack = useRef(null);
   const [snapshots, setSnapshots] = useState([]);
+  const [currentStep, setCurrentStep] = useState(0); // 0: Define, 1: Set up, 2: Measure, 3: Result
+  const isOnMeasurePage = currentStep === 2;
+  const [isMicMuted, setIsMicMuted] = useState(false);
 
   function addRandomSnapshotRow() {
+    if (!isOnMeasurePage) return; // Only allow snapshots on Measure page
     setSnapshots((prev) => {
       const nextId = prev.length + 1;
       const pos = (nextId - 1) * 5;
@@ -25,6 +31,19 @@ export default function App() {
         { id: nextId, pos, v: vVal, h: hVal },
       ];
     });
+  }
+
+  function goToStep(stepIndex) {
+    const bounded = Math.max(0, Math.min(3, stepIndex));
+    setCurrentStep(bounded);
+  }
+
+  function goNextStep() {
+    setCurrentStep((s) => Math.min(3, s + 1));
+  }
+
+  function goPreviousStep() {
+    setCurrentStep((s) => Math.max(0, s - 1));
   }
 
   async function startSession() {
@@ -45,7 +64,9 @@ export default function App() {
     const ms = await navigator.mediaDevices.getUserMedia({
       audio: true,
     });
-    pc.addTrack(ms.getTracks()[0]);
+    localMicTrack.current = ms.getTracks()[0];
+    localMicTrack.current.enabled = !isMicMuted;
+    pc.addTrack(localMicTrack.current);
 
     // Set up data channel for sending and receiving events
     const dc = pc.createDataChannel("oai-events");
@@ -94,6 +115,10 @@ export default function App() {
     setIsSessionActive(false);
     setDataChannel(null);
     peerConnection.current = null;
+    if (localMicTrack.current) {
+      localMicTrack.current.stop();
+      localMicTrack.current = null;
+    }
   }
 
   // Send a message to the model
@@ -138,6 +163,16 @@ export default function App() {
     sendClientEvent({ type: "response.create" });
   }
 
+  function toggleMicMute() {
+    setIsMicMuted((prev) => {
+      const next = !prev;
+      if (localMicTrack.current) {
+        localMicTrack.current.enabled = !next;
+      }
+      return next;
+    });
+  }
+
   // Attach event listeners to the data channel when a new one is created
   useEffect(() => {
     if (dataChannel) {
@@ -165,13 +200,66 @@ export default function App() {
         <div className="flex items-center gap-4 w-full m-4 pb-2 border-0 border-b border-solid border-gray-200">
           <img style={{ width: "24px" }} src={logo} />
           <h1>realtime console</h1>
+          <div className="ml-6 flex items-center gap-2">
+            {[
+              { label: "Define" },
+              { label: "Set up" },
+              { label: "Measure" },
+              { label: "Result" },
+            ].map((step, idx) => (
+              <button
+                key={step.label}
+                onClick={() => goToStep(idx)}
+                className={
+                  "px-3 py-1 rounded-md text-sm " +
+                  (currentStep === idx
+                    ? "bg-orange-400 text-black"
+                    : "bg-gray-700 text-white")
+                }
+              >
+                {step.label}
+              </button>
+            ))}
+          </div>
         </div>
       </nav>
       <main className="absolute top-16 left-0 right-0 bottom-0">
         <section className="absolute top-0 left-0 right-[380px] bottom-0 flex">
           <section className="absolute top-0 left-0 right-0 bottom-32 px-4 overflow-y-auto">
-            {/* Snapshot table on the left */}
-            <SnapshotTable rows={snapshots} />
+            {currentStep === 0 ? (
+              <div className="w-full h-full bg-gray-50 rounded-md p-4">
+                <h2 className="text-lg font-bold mb-4">Define</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
+                  <label className="flex flex-col gap-2">
+                    <span>Start (mm)</span>
+                    <input className="border rounded p-2" placeholder="0" />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span>End (mm)</span>
+                    <input className="border rounded p-2" placeholder="20" />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span>Interval (mm)</span>
+                    <input className="border rounded p-2" placeholder="5" />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span>Filter level</span>
+                    <select className="border rounded p-2">
+                      <option>Filter off</option>
+                      <option>Low</option>
+                      <option>Medium</option>
+                      <option>High</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ) : currentStep === 1 ? (
+              <AlignPage />
+            ) : currentStep === 2 ? (
+              <SnapshotTable rows={snapshots} />
+            ) : (
+              <ResultChart />
+            )}
           </section>
           <section className="absolute h-32 left-0 right-0 bottom-0 p-4">
             <SessionControls
@@ -181,6 +269,8 @@ export default function App() {
               sendTextMessage={sendTextMessage}
               events={events}
               isSessionActive={isSessionActive}
+              isMicMuted={isMicMuted}
+              onToggleMicMute={toggleMicMute}
             />
           </section>
         </section>
@@ -191,9 +281,42 @@ export default function App() {
             events={events}
             isSessionActive={isSessionActive}
             onSnapshot={addRandomSnapshotRow}
+            onNextStep={goNextStep}
+            onPrevStep={goPreviousStep}
+            isOnMeasurePage={isOnMeasurePage}
           />
         </section>
       </main>
     </>
+  );
+}
+
+function AlignPage() {
+  const [connected, setConnected] = useState(false);
+  return (
+    <div className="w-full h-full bg-gray-50 rounded-md p-4 flex flex-col">
+      <h2 className="text-lg font-bold mb-4">Align to axis</h2>
+      <div className="flex-1 flex items-center justify-center gap-6">
+        <div className="w-72 h-72 bg-gray-800 rounded-xl relative flex items-center justify-center">
+          <div className="absolute inset-2 border-2 border-green-400 rounded-lg" />
+          <div className="absolute left-1/2 top-2 bottom-2 w-1 bg-orange-400 -translate-x-1/2" />
+          <div className="absolute top-1/2 left-2 right-2 h-1 bg-blue-300 -translate-y-1/2" />
+          <div className="w-16 h-16 rounded-full bg-red-600 border-4 border-white" />
+        </div>
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => setConnected(true)}
+            className={
+              "px-4 py-2 rounded-md " +
+              (connected ? "bg-gray-500 text-white" : "bg-blue-500 text-white")
+            }
+          >
+            {connected ? "Device connected" : "Connect"}
+          </button>
+          <button className="px-4 py-2 rounded-md bg-gray-700 text-white">Center</button>
+          <button className="px-4 py-2 rounded-md bg-gray-700 text-white">Rotate</button>
+        </div>
+      </div>
+    </div>
   );
 }
